@@ -1,0 +1,15 @@
+[package]
+name = "stift-app"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+
+[[bin]]
+name = "stift"
+path = "src/main.rs"
+
+[dependencies]
+stift-core.workspace = true
+stift-compositor.workspace = true
+stift-renderer.workspace = true
+stift-storage.workspace = true
