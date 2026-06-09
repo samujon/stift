@@ -13,3 +13,6 @@ stift-core.workspace = true
 stift-compositor.workspace = true
 stift-renderer.workspace = true
 stift-storage.workspace = true
+winit = "0.30.13"
+egui = "0.34.3"
+arboard = "3.6.1"

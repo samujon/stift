@@ -1,1 +1,16 @@
+# Rust
 /target
+
+# Caveman generated files
+.agents
+.cursor
+.clinerules
+.opencode
+.windsurf
+skills-lock.json
+AGENTS.md
+
+# GitHub
+.github/*
+!.github/workflows/
+!.github/workflows/ci.yaml

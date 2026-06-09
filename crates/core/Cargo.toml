@@ -5,3 +5,7 @@ edition.workspace = true
 license.workspace = true
 
 [dependencies]
+fast_image_resize = "6.0.0"
+im-rc = "15.1.0"
+palette = "0.7.6"
+rayon = "1.12.0"
