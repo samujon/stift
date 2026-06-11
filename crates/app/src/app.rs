@@ -54,21 +54,20 @@ impl eframe::App for StiftApp {
         ui.painter()
             .rect_filled(rect, 0.0, egui::Color32::from_gray(24));
 
-        if response.drag_started() {
-            if let Some(pos) = response.interact_pointer_pos() {
+        if response.drag_started()
+            && let Some(pos) = response.interact_pointer_pos() {
                 self.renderer
                     .begin_stroke(self.selected_brush, StrokePoint::new(pos.x, pos.y, 1.0));
                 self.is_drawing = true;
                 self.preview_points.push(pos);
             }
-        }
 
-        if response.dragged() && self.is_drawing {
-            if let Some(pos) = response.interact_pointer_pos() {
-                self.renderer.push_point(StrokePoint::new(pos.x, pos.y, 1.0));
+        if response.dragged() && self.is_drawing
+            && let Some(pos) = response.interact_pointer_pos() {
+                self.renderer
+                    .push_point(StrokePoint::new(pos.x, pos.y, 1.0));
                 self.preview_points.push(pos);
             }
-        }
 
         let stroke_width = match self.selected_brush {
             Brush::Round { size } => size,
