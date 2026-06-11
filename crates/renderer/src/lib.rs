@@ -1,5 +1,6 @@
 use stift_core::{Brush, Canvas, StrokePoint};
 use wgpu::{Device, Queue, RenderPass, TextureFormat, RenderPipeline};
+use log::{debug, error, info, trace, warn, log_enabled, Level};
 
 pub trait Renderer {
     fn create_pipeline(device: &Device, format: TextureFormat) -> RenderPipeline;

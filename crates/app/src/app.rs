@@ -1,6 +1,6 @@
 use eframe::egui;
 use stift_core::{Brush, Canvas, StrokePoint};
-use stift_renderer::{GpuRenderer, Renderer};
+use stift_renderer::{GpuRenderer};
 
 pub fn run() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
@@ -13,7 +13,7 @@ pub fn run() -> eframe::Result<()> {
     eframe::run_native(
         "stift-app",
         native_options,
-        Box::new(|_cc| Ok(Box::new(StiftApp::default()))),
+        Box::new(|cc| Ok(Box::new(StiftApp::new(cc)))),
     )
 }
 
@@ -25,10 +25,15 @@ struct StiftApp {
     canvas: Canvas,
 }
 
-impl Default for StiftApp {
-    fn default() -> Self {
+impl StiftApp {
+    fn new(cc: &eframe::CreationContext<'_>) -> Self {
+        let render_state = cc
+            .wgpu_render_state
+            .as_ref()
+            .expect("Stift requires the eframe WGPU backend");
+
         Self {
-            renderer: GpuRenderer::new(),
+            renderer: GpuRenderer::new(&render_state.device, render_state.target_format),
             selected_brush: Brush::Round { size: 8.0 },
             is_drawing: false,
             preview_points: Vec::new(),
