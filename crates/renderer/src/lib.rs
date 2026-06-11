@@ -1,45 +1,38 @@
 use stift_core::{Brush, Canvas, StrokePoint};
+use wgpu::{Device, Queue, RenderPass, TextureFormat, RenderPipeline};
 
 pub trait Renderer {
-    fn begin_stroke(&mut self, brush: Brush, point: StrokePoint);
-    fn push_point(&mut self, point: StrokePoint);
-    fn end_stroke(&mut self);
-    fn present(&mut self);
+    fn create_pipeline(device: &Device, format: TextureFormat) -> RenderPipeline;
+    fn update_buffers(&self, device: &Device, queue: &Queue);
+    fn draw<'a>(&'a self, render_pass: &mut RenderPass<'a>);
 }
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct GpuRenderer {
-    active_stroke: bool,
-    active_brush: Option<Brush>,
-    points_in_stroke: usize,
+    pipeline: RenderPipeline,
 }
 
 impl GpuRenderer {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(device: &Device, format: TextureFormat) -> Self {
+        let pipeline = Self::create_pipeline(device, format);
+
+        Self { pipeline }
     }
 }
 
 impl Renderer for GpuRenderer {
-    fn begin_stroke(&mut self, brush: Brush, _point: StrokePoint) {
-        self.active_stroke = true;
-        self.active_brush = Some(brush);
-        self.points_in_stroke = 1;
+
+    fn create_pipeline(_device: &Device, _format: TextureFormat) -> RenderPipeline {
+        todo!("Implement pipeline creation")
     }
 
-    fn push_point(&mut self, _point: StrokePoint) {
-        if self.active_stroke {
-            self.points_in_stroke += 1;
-        }
+    fn update_buffers(&self, _device: &Device, _queue: &Queue) {
+        todo!("Implement buffer updates")
     }
 
-    fn end_stroke(&mut self) {
-        self.active_stroke = false;
-        self.active_brush = None;
-        self.points_in_stroke = 0;
+    fn draw<'a>(&'a self, _render_pass: &mut RenderPass<'a>) {
+        RenderPass::set_pipeline(_render_pass, &self.pipeline);
     }
 
-    fn present(&mut self) {
-        // Intentionally no-op for now. Real renderer will submit GPU passes here.
-    }
+
 }
