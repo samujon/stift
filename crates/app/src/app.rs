@@ -1,6 +1,6 @@
 use eframe::egui;
-use stift_core::{Brush, StrokePoint, Canvas};
-use stift_renderer::{NoopRenderer, Renderer};
+use stift_core::{Brush, Canvas, StrokePoint};
+use stift_renderer::{GpuRenderer, Renderer};
 
 pub fn run() -> eframe::Result<()> {
     let native_options = eframe::NativeOptions {
@@ -18,7 +18,7 @@ pub fn run() -> eframe::Result<()> {
 }
 
 struct StiftApp {
-    renderer: NoopRenderer,
+    renderer: GpuRenderer,
     selected_brush: Brush,
     is_drawing: bool,
     preview_points: Vec<egui::Pos2>,
@@ -28,11 +28,14 @@ struct StiftApp {
 impl Default for StiftApp {
     fn default() -> Self {
         Self {
-            renderer: NoopRenderer::new(),
+            renderer: GpuRenderer::new(),
             selected_brush: Brush::Round { size: 8.0 },
             is_drawing: false,
             preview_points: Vec::new(),
-            canvas: Canvas { width: 900, height: 650 },
+            canvas: Canvas {
+                width: 900,
+                height: 650,
+            },
         }
     }
 }
@@ -57,19 +60,22 @@ impl eframe::App for StiftApp {
             .rect_filled(rect, 0.0, egui::Color32::from_gray(24));
 
         if response.drag_started()
-            && let Some(pos) = response.interact_pointer_pos() {
-                self.renderer
-                    .begin_stroke(self.selected_brush, StrokePoint::new(pos.x, pos.y, 1.0));
-                self.is_drawing = true;
-                self.preview_points.push(pos);
-            }
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            self.renderer
+                .begin_stroke(self.selected_brush, StrokePoint::new(pos.x, pos.y, 1.0));
+            self.is_drawing = true;
+            self.preview_points.push(pos);
+        }
 
-        if response.dragged() && self.is_drawing
-            && let Some(pos) = response.interact_pointer_pos() {
-                self.renderer
-                    .push_point(StrokePoint::new(pos.x, pos.y, 1.0));
-                self.preview_points.push(pos);
-            }
+        if response.dragged()
+            && self.is_drawing
+            && let Some(pos) = response.interact_pointer_pos()
+        {
+            self.renderer
+                .push_point(StrokePoint::new(pos.x, pos.y, 1.0));
+            self.preview_points.push(pos);
+        }
 
         let stroke_width = match self.selected_brush {
             Brush::Round { size } => size,

@@ -1,4 +1,4 @@
-use stift_core::{Brush, StrokePoint, Canvas};
+use stift_core::{Brush, Canvas, StrokePoint};
 
 pub trait Renderer {
     fn begin_stroke(&mut self, brush: Brush, point: StrokePoint);
@@ -8,19 +8,19 @@ pub trait Renderer {
 }
 
 #[derive(Debug, Default)]
-pub struct NoopRenderer {
+pub struct GpuRenderer {
     active_stroke: bool,
     active_brush: Option<Brush>,
     points_in_stroke: usize,
 }
 
-impl NoopRenderer {
+impl GpuRenderer {
     pub fn new() -> Self {
         Self::default()
     }
 }
 
-impl Renderer for NoopRenderer {
+impl Renderer for GpuRenderer {
     fn begin_stroke(&mut self, brush: Brush, _point: StrokePoint) {
         self.active_stroke = true;
         self.active_brush = Some(brush);
