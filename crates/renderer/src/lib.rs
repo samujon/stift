@@ -1,4 +1,4 @@
-use stift_core::{Brush, StrokePoint};
+use stift_core::{Brush, StrokePoint, Canvas};
 
 pub trait Renderer {
     fn begin_stroke(&mut self, brush: Brush, point: StrokePoint);

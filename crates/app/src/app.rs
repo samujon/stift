@@ -1,5 +1,5 @@
 use eframe::egui;
-use stift_core::{Brush, StrokePoint};
+use stift_core::{Brush, StrokePoint, Canvas};
 use stift_renderer::{NoopRenderer, Renderer};
 
 pub fn run() -> eframe::Result<()> {
@@ -22,6 +22,7 @@ struct StiftApp {
     selected_brush: Brush,
     is_drawing: bool,
     preview_points: Vec<egui::Pos2>,
+    canvas: Canvas,
 }
 
 impl Default for StiftApp {
@@ -31,6 +32,7 @@ impl Default for StiftApp {
             selected_brush: Brush::Round { size: 8.0 },
             is_drawing: false,
             preview_points: Vec::new(),
+            canvas: Canvas { width: 900, height: 650 },
         }
     }
 }
