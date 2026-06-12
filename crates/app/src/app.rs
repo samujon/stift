@@ -32,7 +32,7 @@ impl StiftApp {
 }
 
 impl eframe::App for StiftApp {
-   fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         egui::CentralPanel::default().show_inside(ui, |ui| {
             // Check if we need to initialize or update the GPU texture asset
             if self.canvas_texture.is_none() {
