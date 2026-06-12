@@ -14,6 +14,7 @@ stift-compositor.workspace = true
 stift-renderer.workspace = true
 stift-storage.workspace = true
 egui = "0.34.3"
+egui_dock = "0.19"
 arboard = "3.6.1"
 eframe = "0.34.3"
 env_logger = "0.11.10"
