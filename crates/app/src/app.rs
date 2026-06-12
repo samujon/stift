@@ -1,103 +1,73 @@
 use eframe::egui;
-use stift_core::{Brush, Canvas, StrokePoint};
-use stift_renderer::{GpuRenderer};
+use stift_compositor::Compositor;
+use stift_renderer::convert_to_egui_image;
 
 pub fn run() -> eframe::Result<()> {
-    let native_options = eframe::NativeOptions {
+    let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
-            .with_inner_size([900.0, 650.0])
-            .with_title("Stift"),
+            .with_inner_size([1280.0, 720.0])
+            .with_title("Stift Editor"),
         ..Default::default()
     };
 
     eframe::run_native(
-        "stift-app",
-        native_options,
+        "Stift Application Engine",
+        options,
         Box::new(|cc| Ok(Box::new(StiftApp::new(cc)))),
     )
 }
 
 struct StiftApp {
-    renderer: GpuRenderer,
-    selected_brush: Brush,
-    is_drawing: bool,
-    preview_points: Vec<egui::Pos2>,
-    canvas: Canvas,
+    compositor: Compositor,
+    canvas_texture: Option<egui::TextureHandle>,
 }
 
 impl StiftApp {
-    fn new(cc: &eframe::CreationContext<'_>) -> Self {
-        let render_state = cc
-            .wgpu_render_state
-            .as_ref()
-            .expect("Stift requires the eframe WGPU backend");
-
+    fn new(_cc: &eframe::CreationContext<'_>) -> Self {
         Self {
-            renderer: GpuRenderer::new(&render_state.device, render_state.target_format),
-            selected_brush: Brush::Round { size: 8.0 },
-            is_drawing: false,
-            preview_points: Vec::new(),
-            canvas: Canvas {
-                width: 900,
-                height: 650,
-            },
+            compositor: Compositor::new(1800, 920),
+            canvas_texture: None,
         }
     }
 }
 
 impl eframe::App for StiftApp {
-    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
-        ui.horizontal(|ui| {
-            ui.label("Tools:");
-            if ui.button("Round 8px").clicked() {
-                self.selected_brush = Brush::Round { size: 8.0 };
+   fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
+            // Check if we need to initialize or update the GPU texture asset
+            if self.canvas_texture.is_none() {
+                let image_data = convert_to_egui_image(
+                    self.compositor.width(),
+                    self.compositor.height(),
+                    self.compositor.output_buffer(),
+                );
+                self.canvas_texture = Some(ui.ctx().load_texture(
+                    "main_workspace_canvas",
+                    image_data,
+                    egui::TextureOptions::LINEAR,
+                ));
+                self.compositor.clear_redraw_flag();
+            } else if self.compositor.needs_redraw() {
+                let image_data = convert_to_egui_image(
+                    self.compositor.width(),
+                    self.compositor.height(),
+                    self.compositor.output_buffer(),
+                );
+                if let Some(texture) = &mut self.canvas_texture {
+                    texture.set(image_data, egui::TextureOptions::LINEAR);
+                }
+                self.compositor.clear_redraw_flag();
             }
-            if ui.button("Round 24px").clicked() {
-                self.selected_brush = Brush::Round { size: 24.0 };
-            }
+
+            // Render the GPU texture inside a scrollable area to support panning/zooming later
+            egui::ScrollArea::both()
+                .auto_shrink([false; 2])
+                .show(ui, |ui| {
+                    if let Some(texture) = &self.canvas_texture {
+                        // Display texture image widget
+                        ui.image(texture);
+                    }
+                });
         });
-
-        ui.separator();
-
-        let available = ui.available_size();
-        let (rect, response) = ui.allocate_exact_size(available, egui::Sense::drag());
-        ui.painter()
-            .rect_filled(rect, 0.0, egui::Color32::from_gray(24));
-
-        if response.drag_started()
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            self.renderer
-                .begin_stroke(self.selected_brush, StrokePoint::new(pos.x, pos.y, 1.0));
-            self.is_drawing = true;
-            self.preview_points.push(pos);
-        }
-
-        if response.dragged()
-            && self.is_drawing
-            && let Some(pos) = response.interact_pointer_pos()
-        {
-            self.renderer
-                .push_point(StrokePoint::new(pos.x, pos.y, 1.0));
-            self.preview_points.push(pos);
-        }
-
-        let stroke_width = match self.selected_brush {
-            Brush::Round { size } => size,
-        };
-
-        for segment in self.preview_points.windows(2) {
-            ui.painter().line_segment(
-                [segment[0], segment[1]],
-                egui::Stroke::new(stroke_width, egui::Color32::WHITE),
-            );
-        }
-
-        if self.is_drawing && !ui.input(|i| i.pointer.primary_down()) {
-            self.renderer.end_stroke();
-            self.is_drawing = false;
-        }
-
-        self.renderer.present();
     }
 }

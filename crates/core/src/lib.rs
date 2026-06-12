@@ -15,9 +15,3 @@ impl StrokePoint {
 pub enum Brush {
     Round { size: f32 },
 }
-
-#[derive(Debug, Clone, Copy)]
-pub struct Canvas {
-    pub width: u32,
-    pub height: u32,
-}
