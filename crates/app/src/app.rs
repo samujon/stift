@@ -1,7 +1,7 @@
 use eframe::egui;
 use egui::scroll_area::ScrollSource;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
-use log::{debug, info};
+use log::debug;
 use std::env;
 use stift_compositor::Compositor;
 use stift_renderer::convert_to_egui_image;
@@ -146,18 +146,22 @@ impl<'a> StiftTabViewer<'a> {
         let is_pointer_down = ui.ctx().input(|i| i.pointer.any_down());
 
         // if the mouse is pressed, draw on the compositor at the mouse position
-        if is_pointer_down {
-            if let (Some(pos), Some(rect)) = (latest_pos, image_rect) {
-                // correct the screen position into canvas-local coordinates by
-                // subtracting the image rect origin (accounts for panel/scroll offset)
-                let local = pos - rect.min;
-                let x = local.x.clamp(0.0, self.compositor.width() as f32 - 1.0) as u32;
-                let y = local.y.clamp(0.0, self.compositor.height() as f32 - 1.0) as u32;
+        if is_pointer_down && let (Some(pos), Some(rect)) = (latest_pos, image_rect) {
+            // correct the screen position into canvas-local coordinates by
+            // subtracting the image rect origin (accounts for panel/scroll offset)
+            let local = pos - rect.min;
+            let x = local.x.clamp(0.0, self.compositor.width() as f32 - 1.0) as u32;
+            let y = local.y.clamp(0.0, self.compositor.height() as f32 - 1.0) as u32;
 
-                debug!("Drawing at canvas-local position: ({}, {})", x, y);
-                self.compositor
-                    .draw(x, y, stift_core::Brush::Round { size: 10.0, color: [100, 0, 0, 255] });
-            }
+            debug!("Drawing at canvas-local position: ({}, {})", x, y);
+            self.compositor.draw(
+                x,
+                y,
+                stift_core::Brush::Round {
+                    size: 100.0,
+                    color: [100, 0, 0, 255],
+                },
+            );
         }
     }
 
