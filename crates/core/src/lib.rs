@@ -13,5 +13,7 @@ impl StrokePoint {
 
 #[derive(Debug, Clone, Copy)]
 pub enum Brush {
-    Round { size: f32 },
+    Square { size: f32, color: [u8; 4] },
+    Round { size: f32, color: [u8; 4] },
+    Diamond { size: f32, color: [u8; 4] },
 }

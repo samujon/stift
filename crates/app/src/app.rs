@@ -1,14 +1,18 @@
-use std::env;
 use eframe::egui;
 use egui::scroll_area::ScrollSource;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
+use log::{debug, info};
+use std::env;
 use stift_compositor::Compositor;
 use stift_renderer::convert_to_egui_image;
-use log::{info, debug};
 
 pub fn run() -> eframe::Result<()> {
-
-    unsafe { env::set_var("RUST_LOG", "debug,winit=warn,eframe=warn,egui=warn,egui_glow=warn,wgpu=warn,tracing::span=warn"); }
+    unsafe {
+        env::set_var(
+            "RUST_LOG",
+            "debug,winit=warn,eframe=warn,egui=warn,egui_glow=warn,wgpu=warn,tracing::span=warn",
+        );
+    }
     env_logger::init();
 
     let options = eframe::NativeOptions {
@@ -122,7 +126,11 @@ impl<'a> StiftTabViewer<'a> {
             // Enable scrolling with scroll bars and mouse wheel, but not dragging the content to scroll
             // This behaviour should change in the future or maybe be configurable depending on
             // the tool selected, but for now we want to be able to scroll with the mouse wheel without dragging the canvas around
-            .scroll_source(ScrollSource { scroll_bar: (true), drag: (false), mouse_wheel: (true) })
+            .scroll_source(ScrollSource {
+                scroll_bar: (true),
+                drag: (false),
+                mouse_wheel: (true),
+            })
             .content_margin(CONTENT_MARGIN)
             .auto_shrink([false; 2])
             .show(ui, |ui| {
@@ -147,11 +155,10 @@ impl<'a> StiftTabViewer<'a> {
                 let y = local.y.clamp(0.0, self.compositor.height() as f32 - 1.0) as u32;
 
                 debug!("Drawing at canvas-local position: ({}, {})", x, y);
-                self.compositor.draw(x, y, stift_core::Brush::Round { size: 10.0 });
+                self.compositor
+                    .draw(x, y, stift_core::Brush::Round { size: 10.0, color: [100, 0, 0, 255] });
             }
         }
-
-
     }
 
     fn layers_ui(&mut self, ui: &mut egui::Ui) {

@@ -25,23 +25,74 @@ impl Compositor {
         let x = width as usize;
         let y = height as usize;
         if x < self.width as usize && y < self.height as usize {
-            // Given the brush type, we can determine the area to update. For simplicity, let's assume a round brush with a fixed size.
-            // actually a square at the moment
-            let brush_size = match brush {
-                Brush::Round { size } => size as usize,
+            match brush {
+                Brush::Round { size, color } => {
+                    self.draw_round_brush(x, y, size as usize, color);
+                    self.trigger_update();
+                }
+                Brush::Square { size, color } => {
+                    self.draw_square_brush(x, y, size as usize, color);
+                    self.trigger_update();
+                }
+                Brush::Diamond { size, color } => {
+                    self.draw_diamond_brush(x, y, size as usize, color);
+                    self.trigger_update();
+                }
             };
-            // Given the brush size, we can calculate the area to update. For a round brush, we would typically 
-            // update a circular area around the (x, y) position. 
-            // For simplicity, let's just update a square area for now
-            for i in y.saturating_sub(brush_size / 2)..=y + brush_size / 2 {
-                for j in x.saturating_sub(brush_size / 2)..=x + brush_size / 2 {
-                    if i < self.height as usize && j < self.width as usize {
+        }
+    }
+
+    fn draw_round_brush(&mut self, x: usize, y: usize, size: usize, color: [u8; 4]) {
+        let radius = size / 2;
+        for i in y.saturating_sub(radius)..=y + radius {
+            for j in x.saturating_sub(radius)..=x + radius {
+                if i < self.height as usize && j < self.width as usize {
+                    let dx = j as isize - x as isize;
+                    let dy = i as isize - y as isize;
+                    if dx * dx + dy * dy <= (radius as isize * radius as isize) {
                         let index = (i * self.width as usize + j) * 4;
                         if index + 3 < self.buffer.len() {
-                            self.buffer[index] = 0;     // R
-                            self.buffer[index + 1] = 0; // G
-                            self.buffer[index + 2] = 0; // B
-                            self.buffer[index + 3] = 255; // A
+                            self.buffer[index] = color[0]; // R
+                            self.buffer[index + 1] = color[1]; // G
+                            self.buffer[index + 2] = color[2]; // B
+                            self.buffer[index + 3] = color[3]; // A
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn draw_square_brush(&mut self, x: usize, y: usize, size: usize, color: [u8; 4]) {
+        for i in y.saturating_sub(size / 2)..=y + size / 2 {
+            for j in x.saturating_sub(size / 2)..=x + size / 2 {
+                if i < self.height as usize && j < self.width as usize {
+                    let index = (i * self.width as usize + j) * 4;
+                    if index + 3 < self.buffer.len() {
+                        self.buffer[index] = color[0]; // R
+                        self.buffer[index + 1] = color[1]; // G
+                        self.buffer[index + 2] = color[2]; // B
+                        self.buffer[index + 3] = color[3]; // A
+                    }
+                }
+            }
+        }
+    }
+
+    fn draw_diamond_brush(&mut self, x: usize, y: usize, size: usize, color: [u8; 4]) {
+        let radius = size / 2;
+        for i in y.saturating_sub(radius)..=y + radius {
+            for j in x.saturating_sub(radius)..=x + radius {
+                if i < self.height as usize && j < self.width as usize {
+                    let dx = (j as isize - x as isize).abs();
+                    let dy = (i as isize - y as isize).abs();
+                    if dx + dy <= radius as isize {
+                        let index = (i * self.width as usize + j) * 4;
+                        if index + 3 < self.buffer.len() {
+                            self.buffer[index] = color[0]; // R
+                            self.buffer[index + 1] = color[1]; // G
+                            self.buffer[index + 2] = color[2]; // B
+                            self.buffer[index + 3] = color[3]; // A
                         }
                     }
                 }
