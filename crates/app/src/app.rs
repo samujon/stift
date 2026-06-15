@@ -1,9 +1,10 @@
 use std::env;
-
 use eframe::egui;
+use egui::scroll_area::ScrollSource;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use stift_compositor::Compositor;
 use stift_renderer::convert_to_egui_image;
+use log::{info};
 
 pub fn run() -> eframe::Result<()> {
     unsafe { env::set_var("RUST_LOG", "info"); }
@@ -115,14 +116,32 @@ impl<'a> StiftTabViewer<'a> {
             self.compositor.clear_redraw_flag();
         }
 
+        const CONTENT_MARGIN: f32 = 1000.0;
         egui::ScrollArea::both()
-            .content_margin(1000.0)
+            // Enable scrolling with scroll bars and mouse wheel, but not dragging the content to scroll
+            // This behaviour should change in the future or maybe be configurable depending on
+            // the tool selected, but for now we want to be able to scroll with the mouse wheel without dragging the canvas around
+            .scroll_source(ScrollSource { scroll_bar: (true), drag: (false), mouse_wheel: (true) })
+            .content_margin(CONTENT_MARGIN)
             .auto_shrink([false; 2])
             .show(ui, |ui| {
                 if let Some(texture) = self.canvas_texture.as_ref() {
                     ui.image(texture);
                 }
             });
+
+        let latest_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+        info!("Latest pointer position: {:?}", latest_pos);
+        let is_pointer_down = ui.ctx().input(|i| i.pointer.any_down());
+        // if the mouse is pressed, draw on the compositor at the mouse position
+
+        if (is_pointer_down) {
+            if let Some(pos) = latest_pos {
+                self.compositor.draw(pos.x as u32, pos.y as u32, stift_core::Brush::Round { size: 10.0 });
+            }
+        }
+
+
     }
 
     fn layers_ui(&mut self, ui: &mut egui::Ui) {

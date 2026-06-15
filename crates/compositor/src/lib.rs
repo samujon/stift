@@ -1,3 +1,4 @@
+use stift_core::Brush;
 pub struct Compositor {
     width: u32,
     height: u32,
@@ -16,6 +17,24 @@ impl Compositor {
             height,
             buffer,
             needs_redraw: true,
+        }
+    }
+
+    pub fn draw(&mut self, width: u32, height: u32, _brush: Brush) {
+        // Proof of concept to update pixel buffer and correct pixel locations
+        // widhth and height are from mouse coordinates, so we need to convert them to pixel indices
+        let x = width as usize;
+        let y = height as usize;
+        if x < self.width as usize && y < self.height as usize {
+            let index = (y * self.width as usize + x) * 4; // RGBA
+            if index + 3 < self.buffer.len() {
+                // Simple brush effect: set the pixel to black with full opacity
+                self.buffer[index] = 0;     // R
+                self.buffer[index + 1] = 0; // G
+                self.buffer[index + 2] = 0; // B
+                self.buffer[index + 3] = 255; // A
+                self.trigger_update();
+            }
         }
     }
 
