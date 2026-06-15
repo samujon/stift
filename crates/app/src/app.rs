@@ -4,10 +4,11 @@ use egui::scroll_area::ScrollSource;
 use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use stift_compositor::Compositor;
 use stift_renderer::convert_to_egui_image;
-use log::{info};
+use log::{info, debug};
 
 pub fn run() -> eframe::Result<()> {
-    unsafe { env::set_var("RUST_LOG", "info"); }
+
+    unsafe { env::set_var("RUST_LOG", "debug,winit=warn,eframe=warn,egui=warn,egui_glow=warn,wgpu=warn,tracing::span=warn"); }
     env_logger::init();
 
     let options = eframe::NativeOptions {
@@ -117,7 +118,7 @@ impl<'a> StiftTabViewer<'a> {
         }
 
         const CONTENT_MARGIN: f32 = 1000.0;
-        egui::ScrollArea::both()
+        let image_rect = egui::ScrollArea::both()
             // Enable scrolling with scroll bars and mouse wheel, but not dragging the content to scroll
             // This behaviour should change in the future or maybe be configurable depending on
             // the tool selected, but for now we want to be able to scroll with the mouse wheel without dragging the canvas around
@@ -125,19 +126,28 @@ impl<'a> StiftTabViewer<'a> {
             .content_margin(CONTENT_MARGIN)
             .auto_shrink([false; 2])
             .show(ui, |ui| {
-                if let Some(texture) = self.canvas_texture.as_ref() {
-                    ui.image(texture);
-                }
+                self.canvas_texture
+                    .as_ref()
+                    .map(|texture| ui.image(texture).rect)
             });
 
-        let latest_pos = ui.ctx().input(|i| i.pointer.latest_pos());
-        info!("Latest pointer position: {:?}", latest_pos);
-        let is_pointer_down = ui.ctx().input(|i| i.pointer.any_down());
-        // if the mouse is pressed, draw on the compositor at the mouse position
+        let image_rect = image_rect.inner;
 
-        if (is_pointer_down) {
-            if let Some(pos) = latest_pos {
-                self.compositor.draw(pos.x as u32, pos.y as u32, stift_core::Brush::Round { size: 10.0 });
+        let latest_pos = ui.ctx().input(|i| i.pointer.latest_pos());
+        debug!("Latest pointer position: {:?}", latest_pos);
+        let is_pointer_down = ui.ctx().input(|i| i.pointer.any_down());
+
+        // if the mouse is pressed, draw on the compositor at the mouse position
+        if is_pointer_down {
+            if let (Some(pos), Some(rect)) = (latest_pos, image_rect) {
+                // correct the screen position into canvas-local coordinates by
+                // subtracting the image rect origin (accounts for panel/scroll offset)
+                let local = pos - rect.min;
+                let x = local.x.clamp(0.0, self.compositor.width() as f32 - 1.0) as u32;
+                let y = local.y.clamp(0.0, self.compositor.height() as f32 - 1.0) as u32;
+
+                debug!("Drawing at canvas-local position: ({}, {})", x, y);
+                self.compositor.draw(x, y, stift_core::Brush::Round { size: 10.0 });
             }
         }
 
