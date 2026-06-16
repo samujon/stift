@@ -4,7 +4,8 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use log::debug;
 use std::env;
 use stift_compositor::Compositor;
-use stift_renderer::convert_to_egui_image;
+
+use crate::render::convert_to_egui_image;
 
 pub fn run() -> eframe::Result<()> {
     unsafe {
