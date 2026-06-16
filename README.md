@@ -2,7 +2,7 @@
 
 Digital painting workspace written in Rust with `egui`/`eframe` UI.
 
-Current code is a thin editor shell around an in-memory RGBA canvas. `stift-app` opens the window, `stift-compositor` owns the pixel buffer, and `stift-renderer` turns that buffer into an `egui` image.
+Current code is a thin editor shell around an in-memory layered document. `stift-app` opens the window, `stift-core` holds the document model and brush rasterizer, `stift-compositor` flattens the layer stack into one RGBA image, and `stift-app` turns that image into an `egui` texture.
 
 ## Architecture
 
@@ -10,9 +10,9 @@ The project is split into focused crates with clear responsibilities:
 
 | Crate | Folder | Description |
 |---|---|---|
-| `stift-core` | `crates/core/` | Shared paint primitives — `StrokePoint` and `Brush::Round { size }` |
-| `stift-app` | `crates/app/` | **Binary** — launches the `eframe` window, builds docked tabs, shows the canvas texture, and owns the egui image conversion |
-| `stift-compositor` | `crates/compositor/` | **Canvas backend** — in-memory RGBA buffer, size accessors, and redraw tracking |
+| `stift-core` | `crates/core/` | **Data model + brush engine** — `Document`, `Layer`, `BlendMode`, `Brush`, `StrokePoint`, and the CPU `paint` rasterizer (`paint::rasterize`) |
+| `stift-app` | `crates/app/` | **Binary** — launches the `eframe` window, builds docked tabs, drives drawing/layers/properties, and owns the egui image conversion |
+| `stift-compositor` | `crates/compositor/` | **Compositor** — flattens a `Document`'s layer stack into one RGBA buffer, applying per-layer opacity and blend modes |
 | `stift-renderer` | `crates/renderer/` | **GPU renderer** — UI-agnostic `wgpu`-based rendering (placeholder for now) |
 | `stift-storage` | `crates/storage/` | **Stub crate** — placeholder for future file I/O and project persistence |
 
@@ -24,8 +24,8 @@ undifferentiated heavy lifting, and keep UI/binary concerns out of the libraries
 
 | Crate | Dependencies | Rationale |
 |---|---|---|
-| `stift-core` | *(none)* | Pure domain types. No behavior, no UI, no I/O — nothing to depend on. |
-| `stift-compositor` | `stift-core` | Owns pixel buffers built from core primitives only. |
+| `stift-core` | *(none)* | Pure domain model plus self-contained CPU rasterization. No UI, GPU, or I/O. |
+| `stift-compositor` | `stift-core` | Flattens core's layer stack into one buffer. |
 | `stift-renderer` | `stift-core`, `wgpu`, `bytemuck`, `guillotiere` | GPU rendering and texture packing. Intentionally free of any UI framework so it stays reusable/headless. |
 | `stift-storage` | `stift-core`, `image` | File-format crate; image codecs belong here. |
 | `stift-app` | `stift-*`, `eframe`, `egui`, `egui_dock`, `arboard`, `env_logger`, `log`, `pollster` | Composition root and UI edge. All egui coupling and app-level concerns (logging, future-blocking) live here. |
@@ -45,13 +45,14 @@ Notes on the boundaries:
 
 - `stift-app` calls `app::run()`, sets `RUST_LOG=info`, and opens a `1280x720` window titled `Stift Editor`.
 - The main UI uses `egui_dock` with four tabs: `Canvas`, `Layers`, `Properties`, and `Toolbar`.
-- `Canvas` loads the compositor buffer into an `egui::TextureHandle` and shows it inside a scroll area.
-- `Layers`, `Properties`, and `Toolbar` are UI placeholders for now; they do not yet drive painting logic.
-- `stift-compositor` starts as a solid white `1000x1000` RGBA buffer and only tracks whether a redraw is needed.
+- `Canvas` shows the compositor's flattened buffer in an `egui::TextureHandle`; dragging the pointer rasterizes a round brush onto the active layer and re-composites.
+- `Layers` lists the document's layers (top-most first) with per-layer visibility toggles and active-layer selection.
+- `Properties` edits the active layer's opacity and blend mode; `Toolbar` is still a placeholder.
+- The document starts `1000x1000` with an opaque white `Background` layer and a transparent `Layer 1` (active) on top.
 - `stift-renderer` is currently a UI-agnostic placeholder, not yet a GPU pipeline.
 
 ## Notes
 
-- `stift-core` provides the basic stroke data model, but it is not yet wired into canvas editing.
+- `StrokePoint` exists in the data model but is not yet wired into stroke interpolation.
 - `stift-renderer` declares `wgpu` and `guillotiere`, but the current implementation does not use them yet.
 - `stift-storage` is still a placeholder crate.

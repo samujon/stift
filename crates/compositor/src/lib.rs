@@ -1,4 +1,11 @@
-use stift_core::Brush;
+//! Layer compositing.
+//!
+//! The compositor's single job is to flatten a [`Document`]'s layer stack into
+//! one final RGBA8 image, applying each layer's opacity and blend mode. It does
+//! not draw brush strokes — that is the brush engine's job (`stift_core::paint`).
+
+use stift_core::{BlendMode, Document, Layer};
+
 pub struct Compositor {
     width: u32,
     height: u32,
@@ -8,10 +15,7 @@ pub struct Compositor {
 
 impl Compositor {
     pub fn new(width: u32, height: u32) -> Self {
-        // Initialize with a solid white canvas (RGBA)
-        let num_pixels = (width * height) as usize;
-        let buffer = vec![255; num_pixels * 4];
-
+        let buffer = vec![0; (width * height) as usize * 4];
         Self {
             width,
             height,
@@ -20,82 +24,57 @@ impl Compositor {
         }
     }
 
-    pub fn draw(&mut self, width: u32, height: u32, brush: Brush) {
-        // width and height are from mouse coordinates, so we need to convert them to pixel indices
-        let x = width as usize;
-        let y = height as usize;
-        if x < self.width as usize && y < self.height as usize {
-            match brush {
-                Brush::Round { size, color } => {
-                    self.draw_round_brush(x, y, size as usize, color);
-                    self.trigger_update();
-                }
-                Brush::Square { size, color } => {
-                    self.draw_square_brush(x, y, size as usize, color);
-                    self.trigger_update();
-                }
-                Brush::Diamond { size, color } => {
-                    self.draw_diamond_brush(x, y, size as usize, color);
-                    self.trigger_update();
-                }
-            };
+    /// Flattens `document` into the output buffer, bottom layer first, applying
+    /// each visible layer's opacity and blend mode via source-over compositing.
+    pub fn composite(&mut self, document: &Document) {
+        // Start from a transparent canvas.
+        self.buffer.iter_mut().for_each(|b| *b = 0);
+
+        for layer in document
+            .layers
+            .iter()
+            .filter(|l| l.visible && l.opacity > 0.0)
+        {
+            self.blend_layer(layer);
         }
+
+        self.needs_redraw = true;
     }
 
-    fn draw_round_brush(&mut self, x: usize, y: usize, size: usize, color: [u8; 4]) {
-        let radius = size / 2;
-        for i in y.saturating_sub(radius)..=y + radius {
-            for j in x.saturating_sub(radius)..=x + radius {
-                if i < self.height as usize && j < self.width as usize {
-                    let dx = j as isize - x as isize;
-                    let dy = i as isize - y as isize;
-                    if dx * dx + dy * dy <= (radius as isize * radius as isize) {
-                        let index = (i * self.width as usize + j) * 4;
-                        if index + 3 < self.buffer.len() {
-                            self.buffer[index] = color[0]; // R
-                            self.buffer[index + 1] = color[1]; // G
-                            self.buffer[index + 2] = color[2]; // B
-                            self.buffer[index + 3] = color[3]; // A
-                        }
-                    }
-                }
-            }
-        }
-    }
+    fn blend_layer(&mut self, layer: &Layer) {
+        let w = self.width.min(layer.width) as usize;
+        let h = self.height.min(layer.height) as usize;
+        let opacity = layer.opacity.clamp(0.0, 1.0);
 
-    fn draw_square_brush(&mut self, x: usize, y: usize, size: usize, color: [u8; 4]) {
-        for i in y.saturating_sub(size / 2)..=y + size / 2 {
-            for j in x.saturating_sub(size / 2)..=x + size / 2 {
-                if i < self.height as usize && j < self.width as usize {
-                    let index = (i * self.width as usize + j) * 4;
-                    if index + 3 < self.buffer.len() {
-                        self.buffer[index] = color[0]; // R
-                        self.buffer[index + 1] = color[1]; // G
-                        self.buffer[index + 2] = color[2]; // B
-                        self.buffer[index + 3] = color[3]; // A
-                    }
-                }
-            }
-        }
-    }
+        for y in 0..h {
+            for x in 0..w {
+                let dst_i = (y * self.width as usize + x) * 4;
+                let src_i = (y * layer.width as usize + x) * 4;
 
-    fn draw_diamond_brush(&mut self, x: usize, y: usize, size: usize, color: [u8; 4]) {
-        let radius = size / 2;
-        for i in y.saturating_sub(radius)..=y + radius {
-            for j in x.saturating_sub(radius)..=x + radius {
-                if i < self.height as usize && j < self.width as usize {
-                    let dx = (j as isize - x as isize).abs();
-                    let dy = (i as isize - y as isize).abs();
-                    if dx + dy <= radius as isize {
-                        let index = (i * self.width as usize + j) * 4;
-                        if index + 3 < self.buffer.len() {
-                            self.buffer[index] = color[0]; // R
-                            self.buffer[index + 1] = color[1]; // G
-                            self.buffer[index + 2] = color[2]; // B
-                            self.buffer[index + 3] = color[3]; // A
-                        }
-                    }
+                let src = &layer.buffer[src_i..src_i + 4];
+                let sa = (src[3] as f32 / 255.0) * opacity;
+                if sa <= 0.0 {
+                    continue;
                 }
+
+                let dst = [
+                    self.buffer[dst_i],
+                    self.buffer[dst_i + 1],
+                    self.buffer[dst_i + 2],
+                    self.buffer[dst_i + 3],
+                ];
+                let da = dst[3] as f32 / 255.0;
+
+                // Apply the blend mode to the color channels, then source-over.
+                let out_a = sa + da * (1.0 - sa);
+                for c in 0..3 {
+                    let s = src[c] as f32 / 255.0;
+                    let d = dst[c] as f32 / 255.0;
+                    let blended = blend_channel(layer.blend_mode, s, d);
+                    let out = blended * sa + d * (1.0 - sa);
+                    self.buffer[dst_i + c] = (out.clamp(0.0, 1.0) * 255.0).round() as u8;
+                }
+                self.buffer[dst_i + 3] = (out_a.clamp(0.0, 1.0) * 255.0).round() as u8;
             }
         }
     }
@@ -119,8 +98,21 @@ impl Compositor {
     pub fn clear_redraw_flag(&mut self) {
         self.needs_redraw = false;
     }
+}
 
-    pub fn trigger_update(&mut self) {
-        self.needs_redraw = true;
+/// Combines a single source/destination channel pair for a blend mode.
+/// Inputs and output are normalized to `0.0..=1.0`.
+fn blend_channel(mode: BlendMode, s: f32, d: f32) -> f32 {
+    match mode {
+        BlendMode::Normal => s,
+        BlendMode::Multiply => s * d,
+        BlendMode::Screen => 1.0 - (1.0 - s) * (1.0 - d),
+        BlendMode::Overlay => {
+            if d < 0.5 {
+                2.0 * s * d
+            } else {
+                1.0 - 2.0 * (1.0 - s) * (1.0 - d)
+            }
+        }
     }
 }

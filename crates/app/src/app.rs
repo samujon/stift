@@ -4,6 +4,7 @@ use egui_dock::{DockArea, DockState, NodeIndex, Style, TabViewer};
 use log::debug;
 use std::env;
 use stift_compositor::Compositor;
+use stift_core::{Document, paint};
 
 use crate::render::convert_to_egui_image;
 
@@ -39,6 +40,7 @@ enum Tab {
 }
 
 struct StiftApp {
+    document: Document,
     compositor: Compositor,
     canvas_texture: Option<egui::TextureHandle>,
     dock_state: DockState<Tab>,
@@ -61,8 +63,14 @@ impl StiftApp {
         // Toolbar below properties
         surface.split_below(properties_node, 0.7, vec![Tab::Toolbar]);
 
+        let document = Document::new(1000, 1000);
+        let mut compositor = Compositor::new(document.width, document.height);
+        // Produce the initial flattened image so the canvas has something to show.
+        compositor.composite(&document);
+
         Self {
-            compositor: Compositor::new(1000, 1000),
+            document,
+            compositor,
             canvas_texture: None,
             dock_state,
         }
@@ -70,6 +78,7 @@ impl StiftApp {
 }
 
 struct StiftTabViewer<'a> {
+    document: &'a mut Document,
     compositor: &'a mut Compositor,
     canvas_texture: &'a mut Option<egui::TextureHandle>,
 }
@@ -146,7 +155,7 @@ impl<'a> StiftTabViewer<'a> {
         debug!("Latest pointer position: {:?}", latest_pos);
         let is_pointer_down = ui.ctx().input(|i| i.pointer.any_down());
 
-        // if the mouse is pressed, draw on the compositor at the mouse position
+        // if the mouse is pressed, draw on the active layer at the mouse position
         if is_pointer_down && let (Some(pos), Some(rect)) = (latest_pos, image_rect) {
             // correct the screen position into canvas-local coordinates by
             // subtracting the image rect origin (accounts for panel/scroll offset)
@@ -155,25 +164,76 @@ impl<'a> StiftTabViewer<'a> {
             let y = local.y.clamp(0.0, self.compositor.height() as f32 - 1.0) as u32;
 
             debug!("Drawing at canvas-local position: ({}, {})", x, y);
-            self.compositor.draw(
-                x,
-                y,
-                stift_core::Brush::Round {
-                    size: 100.0,
-                    color: [100, 0, 0, 255],
-                },
-            );
+            if let Some(layer) = self.document.active_layer_mut() {
+                paint::rasterize(
+                    layer,
+                    x as usize,
+                    y as usize,
+                    stift_core::Brush::Round {
+                        size: 100.0,
+                        color: [100, 0, 0, 255],
+                    },
+                );
+            }
+            // Re-flatten the stack so the change is visible.
+            self.compositor.composite(self.document);
         }
     }
 
     fn layers_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Layers");
         ui.separator();
-        ui.label("⚫ Layer 1 (Background)");
+
+        let mut changed = false;
+        let active = self.document.active;
+        let mut new_active = active;
+        // Show top-most layer first, matching how layers stack visually.
+        for index in (0..self.document.layers.len()).rev() {
+            let layer = &mut self.document.layers[index];
+            ui.horizontal(|ui| {
+                changed |= ui.checkbox(&mut layer.visible, "").changed();
+                if ui.selectable_label(active == index, &layer.name).clicked() {
+                    new_active = index;
+                }
+            });
+        }
+        self.document.active = new_active;
+
+        if changed {
+            self.compositor.composite(self.document);
+        }
     }
 
     fn properties_ui(&mut self, ui: &mut egui::Ui) {
         ui.heading("Properties");
+        ui.separator();
+
+        let active = self.document.active;
+        let Some(layer) = self.document.layers.get_mut(active) else {
+            ui.label("No active layer");
+            return;
+        };
+
+        let mut changed = false;
+        ui.label(format!("Layer: {}", layer.name));
+
+        changed |= ui
+            .add(egui::Slider::new(&mut layer.opacity, 0.0..=1.0).text("Opacity"))
+            .changed();
+
+        egui::ComboBox::from_label("Blend")
+            .selected_text(layer.blend_mode.label())
+            .show_ui(ui, |ui| {
+                for mode in stift_core::BlendMode::ALL {
+                    changed |= ui
+                        .selectable_value(&mut layer.blend_mode, mode, mode.label())
+                        .changed();
+                }
+            });
+
+        if changed {
+            self.compositor.composite(self.document);
+        }
     }
 
     fn toolbar_ui(&mut self, ui: &mut egui::Ui) {
@@ -189,6 +249,7 @@ impl<'a> StiftTabViewer<'a> {
 impl eframe::App for StiftApp {
     fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
         let mut tab_viewer = StiftTabViewer {
+            document: &mut self.document,
             compositor: &mut self.compositor,
             canvas_texture: &mut self.canvas_texture,
         };
